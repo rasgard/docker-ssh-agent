@@ -78,5 +78,14 @@ fi
 # generate host keys if not present
 ssh-keygen -A
 
+# if docker socket is mounted, use the same gid inside the container
+if [ -e "/var/run/docker.sock" ]; then
+    DOCKER_GID=$(stat -c '%g' /var/run/docker.sock); \
+    groupmod -g ${DOCKER_GID} docker; \
+    usermod -aG docker jenkins; \
+    echo "Docker group ID: ${DOCKER_GID}"; \
+else \
+    echo "Docker socket not found at ${DOCKER_SOCKET}"; \
+fi
 # do not detach (-D), log to stderr (-e), passthrough other arguments
 exec /usr/sbin/sshd -D -e "${@}"

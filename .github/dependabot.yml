@@ -1,52 +1,22 @@
 version: 2
 updates:
 - package-ecosystem: docker
-  directory: "/11/alpine"
+  directory: "/alpine"
   schedule:
     interval: weekly
   open-pull-requests-limit: 10
 - package-ecosystem: docker
-  directory: "/11/bullseye"
+  directory: "/debian"
   schedule:
     interval: weekly
   open-pull-requests-limit: 10
 - package-ecosystem: docker
-  directory: "/11/windows/nanoserver-ltsc2019"
+  directory: "/windows/nanoserver"
   schedule:
     interval: weekly
   open-pull-requests-limit: 10
 - package-ecosystem: docker
-  directory: "/11/windows/windowsservercore-ltsc2019"
-  schedule:
-    interval: weekly
-  open-pull-requests-limit: 10
-- package-ecosystem: docker
-  directory: "/17/alpine"
-  schedule:
-    interval: weekly
-  open-pull-requests-limit: 10
-- package-ecosystem: docker
-  directory: "/17/bullseye"
-  schedule:
-    interval: weekly
-  open-pull-requests-limit: 10
-- package-ecosystem: docker
-  directory: "/8/alpine"
-  schedule:
-    interval: weekly
-  open-pull-requests-limit: 10
-- package-ecosystem: docker
-  directory: "/8/bullseye"
-  schedule:
-    interval: weekly
-  open-pull-requests-limit: 10
-- package-ecosystem: docker
-  directory: "/8/windows/nanoserver-ltsc2019"
-  schedule:
-    interval: weekly
-  open-pull-requests-limit: 10
-- package-ecosystem: docker
-  directory: "/8/windows/windowsservercore-ltsc2019"
+  directory: "/windows/windowsservercore"
   schedule:
     interval: weekly
   open-pull-requests-limit: 10
@@ -56,3 +26,7 @@ updates:
   schedule:
     # Check for updates to GitHub Actions every week
     interval: "weekly"
+  labels:
+    - github-action
+    - dependencies
+    - skip-changelog

@@ -8,7 +8,7 @@ export DOCKER_CLI_EXPERIMENTAL=enabled
 export BUILDKIT_PROGRESS=plain
 
 current_arch := $(shell uname -m)
-export ARCH ?= $(shell case $(current_arch) in (x86_64) echo "amd64" ;; (i386) echo "386";; (aarch64|arm64) echo "arm64" ;; (armv6*) echo "arm/v6";; (armv7*) echo "arm/v7";; (s390*|riscv*) echo $(current_arch);; (*) echo "UNKNOWN-CPU";; esac)
+export ARCH ?= $(shell case $(current_arch) in (x86_64) echo "amd64" ;; (i386) echo "386";; (aarch64|arm64) echo "arm64" ;; (armv6*) echo "arm/v6";; (armv7*) echo "arm/v7";; (s390*|riscv*|ppc64le) echo $(current_arch);; (*) echo "UNKNOWN-CPU";; esac)
 
 IMAGE_NAME:=jenkins4eval/ssh-agent
 
@@ -22,10 +22,11 @@ check_cli = type "$(1)" >/dev/null 2>&1 || { echo "Error: command '$(1)' require
 ## Check if a given image exists in the current manifest docker-bake.hcl
 check_image = make --silent list | grep -w '$(1)' >/dev/null 2>&1 || { echo "Error: the image '$(1)' does not exist in manifest for the platform 'linux/$(ARCH)'. Please check the output of 'make list'. Exiting." ; exit 1 ; }
 ## Base "docker buildx base" command to be reused everywhere
-bake_base_cli := docker buildx bake -f docker-bake.hcl --load
+bake_base_cli := docker buildx bake --file docker-bake.hcl
+bake_cli := $(bake_base_cli) --load
 
 .PHONY: build
-.PHONY: test test-alpine test-archlinux test-debian test-jdk11 test-jdk11-alpine
+.PHONY: test test-alpine test-debian
 
 check-reqs:
 ## Build requirements
@@ -37,27 +38,36 @@ check-reqs:
 	@$(call check_cli,curl)
 	@$(call check_cli,jq)
 
+## This function is specific to Jenkins infrastructure and isn't required in other contexts
+docker-init: check-reqs
+	@set -x; docker buildx create --use
+	docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+
 build: check-reqs
-	@set -x; $(bake_base_cli) --set '*.platform=linux/$(ARCH)' $(shell make --silent list)
+	@set -x; $(bake_cli) $(shell make --silent list) --set '*.platform=linux/$(ARCH)'
 
 build-%:
 	@$(call check_image,$*)
-	@set -x; $(bake_base_cli) --set '*.platform=linux/$(ARCH)' '$*'
+	@set -x; $(bake_cli) '$*' --set '*.platform=linux/$(ARCH)'
+
+every-build: check-reqs
+	@set -x; $(bake_base_cli) linux
 
 show:
-	@$(bake_base_cli) linux --print
+	@$(bake_cli) linux --print
 
 list: check-reqs
 	@set -x; make --silent show | jq -r '.target | path(.. | select(.platforms[] | contains("linux/$(ARCH)"))?) | add'
 
 bats:
-	git clone https://github.com/bats-core/bats-core bats ;\
-	cd bats ;\
-	git checkout v1.7.0
+	git clone --branch v1.11.1 https://github.com/bats-core/bats-core bats
 
 prepare-test: bats check-reqs
 	git submodule update --init --recursive
 	mkdir -p target
+
+publish:
+	@set -x; $(bake_base_cli) linux --push
 
 ## Define bats options based on environment
 # common flags for all tests
@@ -79,10 +89,7 @@ test-%: prepare-test
 	@make --silent build-$*
 # Execute the test harness and write result to a TAP file
 	set -x
-	IMAGE=$* bats/bin/bats $(bats_flags) | tee target/results-$*.tap
-# convert TAP to JUNIT
-	docker run --rm -v "$(CURDIR)":/usr/src/app -w /usr/src/app node:18-alpine \
-		sh -c "npm install -g npm@8.7.0 && npm install tap-xunit -g && cat target/results-$*.tap | tap-xunit --package='jenkinsci.docker.$*' > target/junit-results-$*.xml"
+	IMAGE=$* bats/bin/bats --formatter junit $(bats_flags) | tee target/junit-results-$*.xml
 
 test: prepare-test
 	@make --silent list | while read image; do make --silent "test-$${image}"; done

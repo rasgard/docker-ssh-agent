@@ -67,11 +67,11 @@ You should be all set.
 Should you need to extend the image, you could use something along those lines:
 
 ```Dockerfile
-FROM jenkins/ssh-agent:bullseye-jdk17 as ssh-agent
+FROM jenkins/ssh-agent:debian-jdk17 as ssh-agent
 # [...]
 COPY --chown=jenkins mykey "${JENKINS_AGENT_HOME}"/.ssh/mykey
 # [...]
-``` 
+```
 
 ## Configurations
 
@@ -79,14 +79,10 @@ The image has several supported configurations, which can be accessed via the fo
 
 `${IMAGE_VERSION}` can be found on the [releases](https://github.com/jenkinsci/docker-ssh-agent/releases) page.
 
-* `latest`, `latest-jdk11`, `jdk11`, `latest-bullseye-jdk11`, `bullseye-jdk11`, `${IMAGE_VERSION}`, `${IMAGE_VERSION}-jdk11`, ([Dockerfile](11/bullseye/Dockerfile))
-* `latest-jdk8`, `jdk8`, `latest-bullseye-jdk8`, `bullseye-jdk8`, `${IMAGE_VERSION}-jdk8`, ([Dockerfile](8/bullseye/Dockerfile))
-* `latest-jdk17`, `jdk17`, `latest-bullseye-jdk17`, `bullseye-jdk17`, `${IMAGE_VERSION}-jdk17`, ([Dockerfile](17/bullseye/Dockerfile))
-* `latest-alpine-jdk8`, `alpine-jdk8`, `${IMAGE_VERSION}-jdk8`, ([Dockerfile](8/alpine/Dockerfile))
-* `nanoserver-1809`, `nanoserver-ltsc2019`, `nanoserver-1809-jdk11`, `nanoserver-ltsc2019-jdk11`, `${IMAGE_VERSION}-nanoserver-1809`, `${IMAGE_VERSION}-nanoserver-ltsc2019`, `${IMAGE_VERSION}-nanoserver-1809-jdk11`, `${IMAGE_VERSION}-nanoserver-ltsc2019-jdk11` ([Dockerfile](11/windows/nanoserver-ltsc2019/Dockerfile))
-* `nanoserver-1809-jdk8`, `nanoserver-ltsc2019-jdk8`, `${IMAGE_VERSION}-nanoserver-1809-jdk8`, `${IMAGE_VERSION}-nanoserver-ltsc2019-jdk8` ([Dockerfile](8/windows/nanoserver-ltsc2019/Dockerfile))
-* `windowsservercore-1809`, `windowsservercore-ltsc2019`, `windowsservercore-1809-jdk11`, `windowsservercore-ltsc2019-jdk11`, `${IMAGE_VERSION}-windowsservercore-1809`, `${IMAGE_VERSION}-windowsservercore-ltsc2019`, `${IMAGE_VERSION}-windowsservercore-1809-jdk11`, `${IMAGE_VERSION}-windowsservercore-ltsc2019-jdk11` ([Dockerfile](11/windows/windowsservercore-ltsc2019/Dockerfile))
-* `windowsservercore-1809-jdk8`, `windowsservercore-ltsc2019-jdk8`, `${IMAGE_VERSION}-windowsservercore-1809-jdk8`, `${IMAGE_VERSION}-windowsservercore-ltsc2019-jdk8` ([Dockerfile](8/windows/windowsservercore-ltsc2019/Dockerfile))
+* `latest`, `latest-jdk11`, `jdk11`, `latest-bookworm-jdk11`, `bookworm-jdk11`, `latest-debian-jdk11`, `debian-jdk11`, `${IMAGE_VERSION}`, `${IMAGE_VERSION}-jdk11`, ([Dockerfile](debian/Dockerfile))
+* `latest-jdk17`, `jdk17`, `latest-bookworm-jdk17`, `bookworm-jdk17`, `latest-debian-jdk17`, `debian-jdk17`, `${IMAGE_VERSION}-jdk17`, ([Dockerfile](debian/Dockerfile))
+* `nanoserver-1809`, `nanoserver-ltsc2019`, `nanoserver-1809-jdk11`, `nanoserver-ltsc2019-jdk11`, `${IMAGE_VERSION}-nanoserver-1809`, `${IMAGE_VERSION}-nanoserver-ltsc2019`, `${IMAGE_VERSION}-nanoserver-1809-jdk11`, `${IMAGE_VERSION}-nanoserver-ltsc2019-jdk11` ([Dockerfile](windows/nanoserver-ltsc2019/Dockerfile))
+* `windowsservercore-1809`, `windowsservercore-ltsc2019`, `windowsservercore-1809-jdk11`, `windowsservercore-ltsc2019-jdk11`, `${IMAGE_VERSION}-windowsservercore-1809`, `${IMAGE_VERSION}-windowsservercore-ltsc2019`, `${IMAGE_VERSION}-windowsservercore-1809-jdk11`, `${IMAGE_VERSION}-windowsservercore-ltsc2019-jdk11` ([Dockerfile](windows/windowsservercore-ltsc2019/Dockerfile))
 
 ## Building instructions
 
@@ -98,6 +94,7 @@ Should you want to build this image on your machine (before submitting a pull re
 * Docker BuildX plugin [installed](https://github.com/docker/buildx#installing) on older versions of Docker (from `19.03`). Docker Buildx is included in recent versions of Docker Desktop for Windows, macOS, and Linux. Docker Linux packages also include Docker Buildx when installed using the DEB or RPM packages.
 * [GNU Make](https://www.gnu.org/software/make/) [installed](https://command-not-found.com/make)
 * jq [installed](https://command-not-found.com/jq)
+* yq [installed](https://github.com/mikefarah/yq) (for Windows)
 * [GNU Bash](https://www.gnu.org/software/bash/) [installed](https://command-not-found.com/bash)
 * git [installed](https://command-not-found.com/git)
 * curl [installed](https://command-not-found.com/curl)
@@ -112,11 +109,9 @@ If you want to see the target images that will be built, you can issue the follo
 make list
 alpine_jdk11
 alpine_jdk17
-alpine_jdk8
 debian_jdk11
 debian_jdk17
-debian_jdk8
-``` 
+```
 
 #### Building a specific image
 
@@ -126,14 +121,15 @@ If you want to build a specific image, you can issue the following command:
 make build-<OS>_<JDK_VERSION>
 ```
 
-That would give for JDK 11 on Alpine Linux:
+That would give for JDK 17 on Alpine Linux:
 
 ```bash
-make test-alpine_jdk11
+make build-alpine_jdk17
 ```
 
-#### Building all images
-Then, you can build all the images by running:
+#### Building images supported by your current architecture
+
+Then, you can build the images supported by your current architecture by running:
 
 ```bash
 make build
@@ -141,7 +137,7 @@ make build
 
 #### Testing all images
 
-If you want to test the images, you can run:
+If you want to test these images, you can run:
 
 ```bash
 make test
@@ -154,11 +150,19 @@ If you want to test a specific image, you can run:
 make test-<OS>_<JDK_VERSION>
 ```
 
-That would give for JDK 11 on Alpine Linux:
+That would give for JDK 17 on Alpine Linux:
 
 ```bash
-make test-alpine_jdk11
-``` 
+make test-alpine_jdk17
+```
+
+#### Building all images
+
+You can build all images (even those unsupported by your current architecture) by running:
+
+```bash
+make every-build
+```
 
 #### Other `make` targets
 
@@ -170,19 +174,17 @@ make show
   "group": {
     "default": {
       "targets": [
-        "alpine_jdk8",
         "alpine_jdk17",
         "alpine_jdk11",
-        "debian_jdk8",
         "debian_jdk11",
-        "debian_jdk17"
+        "debian_jdk17",
       ]
     }
   },
   "target": {
     "alpine_jdk11": {
       "context": ".",
-      "dockerfile": "11/alpine/Dockerfile",
+      "dockerfile": "alpine/Dockerfile",
       "tags": [
         "docker.io/jenkins/ssh-agent:alpine-jdk11",
         "docker.io/jenkins/ssh-agent:latest-alpine-jdk11"
@@ -203,6 +205,58 @@ make show
 make bats
 make: 'bats' is up to date.
 ```
+
+`publish` allows the publication of all images targeted by 'linux' to a registry.
+
+`docker-init` is dedicated to Jenkins infrastructure for initializing docker and isn't required in other contexts.
+
+### Building and testing on Windows
+
+#### Building all images
+
+Run `.\build.ps1` to launch the build of the images corresponding to the "windows" target of docker-bake.hcl.
+
+Internally, the first time you'll run this script and if there is no build-windows.yaml file in your repository, it will use a combination of `docker buildx bake` and `yq` to generate a  build-windows.yaml docker compose file containing all Windows image definitions from docker-bake.hcl. Then it will run `docker compose` on this file to build these images.
+
+You can modify this docker compose file as you want, then rerun `.\build.ps1`.
+It won't regenerate the docker compose file from docker-bake.hcl unless you add the `-OverwriteDockerComposeFile` build.ps1 parameter:  `.\build.ps1 -OverwriteDockerComposeFile`.
+
+Note: you can generate this docker compose file from docker-bake.hcl yourself with the following command (require `docker buildx` and `yq`):
+
+```console
+# - Use docker buildx bake to output image definitions from the "windows" bake target
+# - Convert with yq to the format expected by docker compose
+# - Store the result in the docker compose file
+
+$ docker buildx bake --progress=plain --file=docker-bake.hcl windows --print `
+    | yq --prettyPrint '.target[] | del(.output) | {(. | key): {\"image\": .tags[0], \"build\": .}}' | yq '{\"services\": .}' `
+    | Out-File -FilePath build-windows.yaml
+```
+
+Note that you don't need build.ps1 to build (or to publish) your images from this docker compose file, you can use `docker compose --file=build-windows.yaml build`.
+
+#### Testing all images
+
+Run `.\build.ps1 test` if you also want to run the tests harness suit.
+
+Run `.\build.ps1 test -TestsDebug 'debug'` to also get commands & stderr of tests, displayed on top of them.
+You can set it to `'verbose'` to also get stdout of every test command.
+
+Note that instead of passing `-TestsDebug` parameter to build.ps1, you can set the  $env:TESTS_DEBUG environment variable to the desired value.
+
+Also note that contrary to the Linux part, you have to build the images before testing them.
+
+#### Dry run
+
+Add the `-DryRun` parameter to print out any build, publish or tests commands instead of executing them: `.\build.ps1 test -DryRun`
+
+#### Building and testing a specific image
+
+You can build (and test) only one image type by setting `-ImageType` to a combination of Windows flavors ("nanoserver" & "windowsservercore") and Windows versions ("1809", "ltsc2019", "ltsc2022").
+
+Ex: `.\build.ps1 -ImageType 'nanoserver-ltsc2019'`
+
+Warning: trying to build `windowsservercore-1809` will fail as there is no corresponding image from Microsoft.
 
 ## Changelog
 

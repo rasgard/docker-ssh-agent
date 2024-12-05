@@ -20,7 +20,44 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-FROM eclipse-temurin:11.0.17_8-jdk-alpine
+ARG JAVA_VERSION=17.0.13_11
+ARG ALPINE_TAG=3.20.3
+FROM alpine:"${ALPINE_TAG}" AS jre-build
+
+SHELL ["/bin/ash", "-eo", "pipefail", "-c"]
+
+# This Build ARG is populated by Docker
+# Ref. https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
+ARG TARGETPLATFORM
+
+COPY jdk-download-url.sh /usr/bin/local/jdk-download-url.sh
+COPY jdk-download.sh /usr/bin/local/jdk-download.sh
+
+ARG JAVA_VERSION=17.0.13_11
+# hadolint ignore=DL3018
+RUN apk add --no-cache \
+    ca-certificates \
+    jq \
+    curl \
+  && /usr/bin/local/jdk-download.sh alpine
+
+ENV PATH="/opt/jdk-${JAVA_VERSION}/bin:${PATH}"
+
+RUN case "$(jlink --version 2>&1)" in \
+      "17."*) set -- "--compress=2" ;; \
+      # the compression argument is different for JDK21
+      "21."*) set -- "--compress=zip-6" ;; \
+      *) echo "ERROR: unmanaged jlink version pattern" && exit 1 ;; \
+    esac; \
+    jlink \
+      --strip-java-debug-attributes \
+      "$1" \
+      --add-modules ALL-MODULE-PATH \
+      --no-man-pages \
+      --no-header-files \
+      --output /javaruntime
+
+FROM alpine:"${ALPINE_TAG}" AS build
 
 ARG user=jenkins
 ARG group=jenkins
@@ -48,6 +85,7 @@ RUN apk add --no-cache \
     bash \
     git-lfs \
     less \
+    musl-locales \
     netcat-openbsd \
     openssh \
     patch
@@ -60,6 +98,12 @@ RUN sed -i /etc/ssh/sshd_config \
         -e 's/#LogLevel.*/LogLevel INFO/' \
         -e 's/#PermitUserEnvironment.*/PermitUserEnvironment yes/' \
     && mkdir /var/run/sshd
+
+# Install JDK
+
+ENV JAVA_HOME=/opt/java/openjdk
+COPY --from=jre-build /javaruntime "$JAVA_HOME"
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
 # VOLUME directive must happen after setting up permissions and content
 VOLUME "${AGENT_WORKDIR}" "${JENKINS_AGENT_HOME}"/.jenkins "/tmp" "/run" "/var/run"

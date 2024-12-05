@@ -1,0 +1,2 @@
+temurin:
+  version_pattern: "^jdk-[17|21].(\\d*).(\\d*).(\\d*)(.(\\d*))\\+(\\d*)?$"

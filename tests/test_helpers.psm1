@@ -16,7 +16,7 @@ function Test-CommandExists($command) {
 
 # check dependencies
 if(-Not (Test-CommandExists docker)) {
-    Write-Error "docker is not available"
+    Write-Error 'docker is not available'
 }
 
 function Get-EnvOrDefault($name, $def) {
@@ -35,8 +35,8 @@ function Retry-Command {
         [scriptblock] $ScriptBlock,
         [int] $RetryCount = 3,
         [int] $Delay = 30,
-        [string] $SuccessMessage = "Command executed successfuly!",
-        [string] $FailureMessage = "Failed to execute the command"
+        [string] $SuccessMessage = 'Command executed successfuly!',
+        [string] $FailureMessage = 'Failed to execute the command'
         )
 
     process {
@@ -72,8 +72,14 @@ function Retry-Command {
 }
 
 function Cleanup($name='') {
-    docker kill "$name" 2>&1 | Out-Null
-    docker rm -fv "$name" 2>&1 | Out-Null
+    if([System.String]::IsNullOrWhiteSpace($name)) {
+        $name = Get-EnvOrDefault 'IMAGE_NAME' ''
+    }
+
+    if(![System.String]::IsNullOrWhiteSpace($name)) {
+        docker kill "$name" 2>&1 | Out-Null
+        docker rm -fv "$name" 2>&1 | Out-Null
+    }
 }
 
 function CleanupNetwork($name) {
@@ -83,7 +89,7 @@ function CleanupNetwork($name) {
 function Is-ContainerRunning($container) {
     Start-Sleep -Seconds 5
     return Retry-Command -RetryCount 10 -Delay 2 -ScriptBlock {
-        $exitCode, $stdout, $stderr = Run-Program 'docker.exe' "inspect -f `"{{.State.Running}}`" $container"
+        $exitCode, $stdout, $stderr = Run-Program 'docker.exe' "inspect --format `"{{.State.Running}}`" $container"
         if(($exitCode -ne 0) -or (-not $stdout.Contains('true')) ) {
             throw('Exit code incorrect, or invalid value for running state')
         }
@@ -91,8 +97,7 @@ function Is-ContainerRunning($container) {
     }
 }
 
-function Run-Program($cmd, $params, $quiet=$true) {
-    #Write-Host "cmd = $cmd, params = $params"
+function Run-Program($cmd, $params) {
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.CreateNoWindow = $true
     $psi.UseShellExecute = $false
@@ -107,10 +112,13 @@ function Run-Program($cmd, $params, $quiet=$true) {
     $stdout = $proc.StandardOutput.ReadToEnd()
     $stderr = $proc.StandardError.ReadToEnd()
     $proc.WaitForExit()
-    if(($proc.ExitCode -ne 0) -and (-not $quiet)) {
-        Write-Host "`n`nstdout:`n$stdout`n`nstderr:`n$stderr`n`n"
+    if(($env:TESTS_DEBUG -eq 'debug') -or ($env:TESTS_DEBUG -eq 'verbose')) {
+        Write-Host -ForegroundColor DarkBlue "[cmd] $cmd $params"
+        if ($env:TESTS_DEBUG -eq 'verbose') { Write-Host -ForegroundColor DarkGray "[stdout] $stdout" }
+        if($proc.ExitCode -ne 0){
+            Write-Host -ForegroundColor DarkRed "[stderr] $stderr"
+        }
     }
-
     return $proc.ExitCode, $stdout, $stderr
 }
 
@@ -122,15 +130,15 @@ function Get-Port($container, $port=22) {
 
 # run a given command through ssh on the test container.
 function Run-ThruSSH($container, $privateKeyVal, $cmd) {
-    $SSH_PORT=Get-Port $container 22
+    $SSH_PORT = Get-Port $container 22
     if([System.String]::IsNullOrWhiteSpace($SSH_PORT)) {
-        Write-Error "Failed to get SSH port"
+        Write-Error 'Failed to get SSH port'
         return -1, $null, $null
     } else {
         $TMP_PRIV_KEY_FILE = New-TemporaryFile
         Set-Content -Path $TMP_PRIV_KEY_FILE -Value "$privateKeyVal"
 
-        $exitCode, $stdout, $stderr = Run-Program (Join-Path $PSScriptRoot 'ssh.exe') "-i `"${TMP_PRIV_KEY_FILE}`" -o LogLevel=quiet -o UserKnownHostsFile=NUL -o StrictHostKeyChecking=no -l jenkins localhost -p $SSH_PORT $cmd"
+        $exitCode, $stdout, $stderr = Run-Program (Join-Path $PSScriptRoot 'ssh.exe') "-v -i `"${TMP_PRIV_KEY_FILE}`" -o LogLevel=quiet -o UserKnownHostsFile=NUL -o StrictHostKeyChecking=no -l jenkins localhost -p $SSH_PORT $cmd"
         Remove-Item -Force $TMP_PRIV_KEY_FILE
 
         return $exitCode, $stdout, $stderr

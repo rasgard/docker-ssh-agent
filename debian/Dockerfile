@@ -1,6 +1,6 @@
 # The MIT License
 #
-#  Copyright (c) 2015, CloudBees, Inc.
+#  Copyright (c) 2015-2024, CloudBees, Inc. and other Jenkins contributors
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a copy
 #  of this software and associated documentation files (the "Software"), to deal
@@ -19,19 +19,47 @@
 #  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #  THE SOFTWARE.
+ARG DEBIAN_RELEASE=bookworm-20241111
+FROM debian:"${DEBIAN_RELEASE}"-slim as jre-build
 
-FROM eclipse-temurin:11.0.17_8-jdk-focal as jre-build
+SHELL ["/bin/bash", "-e", "-u", "-o", "pipefail", "-c"]
+
+# This Build ARG is populated by Docker
+# Ref. https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
+ARG TARGETPLATFORM
+
+COPY jdk-download-url.sh /usr/bin/local/jdk-download-url.sh
+COPY jdk-download.sh /usr/bin/local/jdk-download.sh
+
+ARG JAVA_VERSION=17.0.13_11
+# hadolint ignore=DL3008
+RUN set -x; apt-get update \
+  && apt-get install --no-install-recommends -y \
+    ca-certificates \
+    jq \
+    curl \
+  && /usr/bin/local/jdk-download.sh
+
+ENV PATH="/opt/jdk-${JAVA_VERSION}/bin:${PATH}"
 
 # Generate smaller java runtime without unneeded files
 # for now we include the full module path to maintain compatibility
-# while still saving space
-RUN jlink \
-         --add-modules ALL-MODULE-PATH \
-         --no-man-pages \
-         --compress=2 \
-         --output /javaruntime
+# while still saving space (approx 200mb from the full distribution)
+RUN case "$(jlink --version 2>&1)" in \
+      "17."*) set -- "--compress=2" ;; \
+      # the compression argument is different for JDK21
+      "21."*) set -- "--compress=zip-6" ;; \
+      *) echo "ERROR: unmanaged jlink version pattern" && exit 1 ;; \
+    esac; \
+    jlink \
+      --strip-java-debug-attributes \
+      "$1" \
+      --add-modules ALL-MODULE-PATH \
+      --no-man-pages \
+      --no-header-files \
+      --output /javaruntime
 
-FROM debian:bullseye-20230227
+FROM debian:"${DEBIAN_RELEASE}"
 
 ARG user=jenkins
 ARG group=jenkins
@@ -40,7 +68,7 @@ ARG gid=1000
 ARG JENKINS_AGENT_HOME=/home/${user}
 
 ENV JENKINS_AGENT_HOME=${JENKINS_AGENT_HOME}
-ARG AGENT_WORKDIR="${JENKINS_AGENT_HOME}"/agent
+ARG AGENT_WORKDIR="${JENKINS_AGENT_HOME}/agent"
 # Persist agent workdir path through an environment variable for people extending the image
 ENV AGENT_WORKDIR=${AGENT_WORKDIR}
 
@@ -53,11 +81,12 @@ RUN groupadd -g ${gid} ${group} \
 
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
-       git-lfs \
-       less \
-       netcat-traditional \
-       openssh-server \
-       patch \
+        ca-certificates \
+        git-lfs \
+        less \
+        netcat-traditional \
+        openssh-server \
+        patch \
     && rm -rf /var/lib/apt/lists/*
 
 # setup SSH server
